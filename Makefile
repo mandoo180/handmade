@@ -13,7 +13,7 @@ $(BUILD_DIR)/handmade.exe: $(OBJS)
 	$(CC) $^ $(CFLAGS) $(LDFLAGS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) -c $< -o $@
+	$(CC) -g -c $< -o $@
 
 clean:
 	rm $(BUILD_DIR)/*.o $(BUILD_DIR)/handmade.exe
