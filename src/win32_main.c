@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <winuser.h>
 #include <stdint.h>
+#include <xinput.h>
 
 #define internal static
 #define local_persist static
@@ -32,6 +33,31 @@ struct win32_window_dimension {
   int width;
   int height;
 };
+
+#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwuserindex, XINPUT_STATE *pstate)
+typedef X_INPUT_GET_STATE(x_input_get_state);
+X_INPUT_GET_STATE(XInputGetStateStub) {
+  return 0;
+}
+global_variable x_input_get_state *XInputGetState_ = XInputGetStateStub;
+#define XInputGetState XInputGetState_
+
+#define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwuserindex, XINPUT_VIBRATION *pvibration)
+typedef X_INPUT_SET_STATE(x_input_set_state);
+X_INPUT_SET_STATE(XInputSetStateStub) {
+  return 0;
+}
+global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
+#define XInputSetState XInputSetState_
+
+internal void Win32LoadXInput() {
+  // TODO: implement
+  HMODULE xinputlib = LoadLibrary("xinput1_3.dll");
+  if (xinputlib) {
+    XInputGetState = (x_input_get_state *) GetProcAddress(xinputlib, "XInputGetState");
+    XInputSetState = (x_input_set_state *) GetProcAddress(xinputlib, "XInputSetState");
+  }
+}
 
 struct win32_window_dimension Win32GetWindowDimension(HWND window) {
   struct win32_window_dimension result;
@@ -81,9 +107,10 @@ void Win32DisplayBufferInWindow(HDC devicectx,
                                 struct win32_offscreen_buffer buffer,
                                 int x, int y, int width, int height)
 {
+  // TODO: aspect ratio conrrection
   StretchDIBits(devicectx,
-                0, 0, buffer.width, buffer.height,
                 0, 0, winwidth, winheight,
+                0, 0, buffer.width, buffer.height,
                 buffer.memory,
                 &buffer.info,
                 DIB_RGB_COLORS, SRCCOPY);
@@ -170,7 +197,8 @@ LRESULT CALLBACK MainWindowCallback(HWND window, UINT message, WPARAM wparam, LP
   return result;
 }
 
-int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, int cmdshow) {
+int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, int showcode) {
+  Win32LoadXInput();
   WNDCLASSA winclass = {};
   winclass.lpfnWndProc = MainWindowCallback;
   winclass.hInstance = instance;
@@ -198,8 +226,34 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
           running = FALSE;
         }
         TranslateMessage(&message);
-        DispatchMessage(&message);
+        DispatchMessageA(&message);
       }
+
+      for (DWORD cindex = 0; cindex < XUSER_MAX_COUNT; ++cindex) {
+        XINPUT_STATE cstate;
+        if (XInputGetState(cindex, &cstate) == ERROR_SUCCESS) {
+          XINPUT_GAMEPAD *pad = &cstate.Gamepad;
+          BOOL up = (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
+          BOOL down = (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
+          BOOL left = (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
+          BOOL right = (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+          BOOL back = (pad->wButtons & XINPUT_GAMEPAD_BACK);
+          BOOL leftsh = (pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
+          BOOL rightsh = (pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
+          BOOL a = (pad->wButtons & XINPUT_GAMEPAD_A);
+          BOOL b = (pad->wButtons & XINPUT_GAMEPAD_B);
+          BOOL x = (pad->wButtons & XINPUT_GAMEPAD_X);
+          BOOL y = (pad->wButtons & XINPUT_GAMEPAD_Y);
+
+          int16 stickx = pad->sThumbLX;
+          int16 sticky = pad->sThumbLY;
+          
+        } else {
+          
+        }
+      }
+
+        
       RenderWeirdGradient(GlobalBackBuffer, xoffset, yoffset);
       HDC devicectx = GetDC(window);
       struct win32_window_dimension dimension = Win32GetWindowDimension(window);
